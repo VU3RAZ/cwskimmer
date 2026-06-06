@@ -1,7 +1,12 @@
 *.o
 .*.swp
 .qmake.stash
-build
-linux-bin
+build/
+linux-bin/
+Makefile
+moc_*.cpp
+moc_predefs.h
+qrc_*.cpp
+ui_*.h
 
 

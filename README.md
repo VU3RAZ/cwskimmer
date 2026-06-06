@@ -1,6 +1,6 @@
 # cwskimmer
 
-A real-time CW (Morse code) skimmer for amateur radio. Connects to an SDR, computes a 192 kHz wide spectrum 500 times per second, and simultaneously decodes Morse code across up to 48 channels — all without manual tuning.
+A real-time CW (Morse code) skimmer for amateur radio. Connects to an SDR or the Icom IC-7300, computes a spectrum up to 500 times per second, and simultaneously decodes Morse code across up to 48 channels — all without manual tuning.
 
 ![cw skimmer screenshot](/cw-skimmer.png?raw=true)
 
@@ -9,31 +9,32 @@ A real-time CW (Morse code) skimmer for amateur radio. Connects to an SDR, compu
 ## Features
 
 - **48-channel simultaneous CW decode** across a ~4.7 kHz wide slice of spectrum
-- **500 FFT frames/second** using a 2048-point FFT over 192 kHz bandwidth
-- **Automatic speed detection** (5–40 WPM via PARIS timing)
+- **500 FFT frames/second** — 2048-point FFT over a 192 kHz IQ stream (SDR mode)
+- **Automatic speed detection**, 5–40 WPM via PARIS timing
 - **Live waterfall + spectrum display** of the full 192 kHz band and the 48-bin decode window
-- **Tunable center frequency** via mouse wheel or numeric keypad
-- **Selectable decode window** — width (number of bins) and center bin adjustable at runtime
-- **Multiple SDR backends**: RTL-SDR, SDRplay v2/v3, HackRF, IC-7300 (USB audio), WAV file replay
+- **Tunable center frequency** via mouse wheel, left-click on spectrum, or numeric keypad
+- **Selectable decode window** — center bin and width adjustable at runtime
+- **IC-7300 CI-V integration** — the app reads and sets the radio's VFO frequency automatically via the Icom CI-V serial protocol; turning the VFO knob updates the skimmer display in real time
+- **Multiple SDR backends**: RTL-SDR, SDRplay RSP v2/v3, HackRF One, IC-7300 USB audio, WAV file replay
 
 ---
 
 ## How It Works
 
-The core pipeline:
+The core pipeline (SDR / wideband mode):
 
 ```
 SDR hardware → IQ samples (192 kHz) → RingBuffer
     → 2048-pt FFT every 2 ms
-        → 48 × elementHandler (each ~94 Hz wide bin)
+        → 48 × elementHandler  (~94 Hz/bin)
             → CW tone/space detector → Morse decoder → text display
 ```
 
-**Bin width**: 192000 / 2048 ≈ **93.75 Hz** per bin — tight enough that a single CW signal usually falls in 1–2 bins.
+**Bin width**: 192000 / 2048 ≈ **93.75 Hz** — tight enough that a single CW signal usually spans 1–2 bins.
 
 **Timing**: Each bin receives ~500 magnitude samples per second. A PARIS dot at 1 WPM = 1200 ms = 600 samples; at 20 WPM = 30 samples. The decoder auto-calibrates dot length from the shortest observed tone in a 14-element sliding window.
 
-**AGC per bin**: Each `elementHandler` maintains a decaying-average peak detector so decode thresholds self-adjust to band noise.
+**AGC per bin**: A decaying-average peak detector per `elementHandler` adjusts decode thresholds to band noise automatically.
 
 ---
 
@@ -41,54 +42,71 @@ SDR hardware → IQ samples (192 kHz) → RingBuffer
 
 | Device | CONFIG flag | Notes |
 |---|---|---|
-| RTL-SDR (DVB-T dongle) | `CONFIG += rtlsdr` | 8-bit, requires `librtlsdr` |
-| SDRplay RSP1/RSP2/RSPdx (API v2) | `CONFIG += sdrplay-v2` | requires Mirics API |
-| SDRplay (API v3) | `CONFIG += sdrplay-v3` | preferred for newer RSP devices |
+| RTL-SDR (DVB-T dongle) | `CONFIG += rtlsdr` | 8-bit, 192 kHz IQ, requires `librtlsdr` |
+| SDRplay RSP1/RSP2/RSPdx (API v2) | `CONFIG += sdrplay-v2` | requires Mirics API installer |
+| SDRplay (API v3) | `CONFIG += sdrplay-v3` | preferred for all current RSP devices |
 | HackRF One | `CONFIG += hackrf` | 8-bit, requires `libhackrf` |
-| Icom IC-7300 | `CONFIG += ic7300` | USB AF audio at 48 kHz (single channel, narrow-band) — see below |
+| Icom IC-7300 | `CONFIG += ic7300` | USB AF audio at 48 kHz + CI-V VFO control — see below |
 | WAV file | always included | 16-bit stereo IQ `.wav` at 192 kHz |
 
 ---
 
 ## IC-7300 Setup
 
-### What the IC-7300 actually provides over USB
+### What the IC-7300 provides over USB
 
-The IC-7300 is **not an SDR**. Its USB audio interface carries narrow-band **AF (audio-frequency) receive audio** — the same signal you would hear in headphones — not raw IQ samples.
+The IC-7300 is **not an SDR**. Its USB connection exposes two separate interfaces:
 
-| Parameter | IC-7300 USB Audio |
+| Interface | Purpose |
 |---|---|
-| Signal type | AF audio (NOT IQ) |
-| Channels | Mono (same signal on L and R) |
-| Sample rates | 8000 / 16000 / 22050 / 44100 / **48000** Hz |
-| **192000 Hz** | **Not supported** |
-| Bandwidth | Limited to IF filter width (≈ 2.4 kHz SSB, up to 3.6 kHz CW-wide) |
+| USB Audio Class | Narrow-band AF receive audio (NOT IQ). Max 48 kHz. Bandwidth limited to IF filter width (~2.4 kHz SSB, ~3.6 kHz CW-wide). |
+| USB CDC Serial | Icom CI-V control port for reading and setting the VFO frequency. |
 
-Because the input bandwidth is narrow, the cwskimmer acts as a **single-channel CW decoder** when using the IC-7300 — not a 48-channel wideband skimmer. For wideband skimming across 4+ kHz, use a dedicated SDR (RTL-SDR, SDRplay, HackRF).
+Because the audio bandwidth is narrow, cwskimmer operates as a **single-channel CW decoder** when using the IC-7300, not a 48-channel wideband skimmer. For wideband skimming use a dedicated SDR.
 
-### Radio setup
+### Audio setup
 
-1. Connect the IC-7300 to the PC via USB cable.
+1. Connect the IC-7300 via USB cable.
 2. On the radio: **MENU → SET → Connectors → USB(AF)**
-   - Set **Output Select** → `AF`
-   - Set **MOD Input** → `USB` *(only needed if you transmit digital modes)*
-3. The radio will appear in your OS as **"USB Audio CODEC"** at 48000 Hz.
+   - **Output Select** → `AF`
+   - **MOD Input** → `USB` *(only needed for transmitting digital modes)*
+3. The radio appears in your OS as **"USB Audio CODEC"** at 48000 Hz.
+4. Verify: `arecord -l | grep -i codec`
 
-Verify it is visible:
+### CI-V frequency control setup
+
+CI-V lets the app read and set the radio's VFO automatically. When you turn the VFO knob on the radio, the display in cwskimmer updates immediately; when you click a frequency in the spectrum, the radio tunes to it.
+
+On the radio:
+
+| Menu path | Setting |
+|---|---|
+| MENU → SET → Connectors → CI-V → **CI-V Address** | Note the value (default: **94** hex) |
+| MENU → SET → Connectors → CI-V → **USB CI-V Baud Rate** | Set to **115200** (or match what you select in the app) |
+| MENU → SET → Connectors → CI-V → **CI-V Transceive** | **ON** — enables automatic VFO broadcasts when the knob moves |
+
+The CI-V serial port appears on Linux as `/dev/ttyUSB0` or `/dev/ttyACM0`. Verify:
 ```bash
-arecord -l | grep -i codec
-# or
-pactl list sources short | grep -i codec
+ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
 ```
 
-4. Build with `CONFIG += ic7300` (see Build section).
-5. In the device selector, pick **ic7300**, then choose **"USB Audio CODEC"** from the drop-down.
+If access is denied, add yourself to the `dialout` group:
+```bash
+sudo usermod -aG dialout $USER   # log out and back in
+```
 
-The handler opens the device at its native sample rate (48000 Hz) automatically — no manual rate setting is needed in the menu.
+### Using CI-V in the app
 
-### Frequency display
+1. Select **ic7300** in the device dialog; pick **"USB Audio CODEC"** from the audio combo.
+2. In the **CI-V Frequency Control** section of the IC-7300 widget:
+   - Select the serial port (e.g. `/dev/ttyUSB0 (IC-7300 USB Serial Port)`)
+   - Set **Baud** to match the radio's USB CI-V baud rate (115200 recommended)
+   - Set **Addr** to the radio's CI-V address (default `94` hex)
+   - Click **Connect**
+3. The status line shows the current VFO frequency. Turning the VFO knob updates it live.
+4. Clicking a frequency in the waterfall sends a CI-V tune command to the radio.
 
-Because the IC-7300 USB audio carries demodulated AF (not raw RF), the **frequency display shows the VFO frequency you set manually** on the radio. There is no automatic frequency readback. The handler includes a `setVFOFrequency()` stub ready for optional CI-V serial control if you want to add automatic frequency tracking later.
+CI-V is **optional** — the audio capture works independently whether CI-V is connected or not.
 
 ---
 
@@ -98,10 +116,16 @@ Because the IC-7300 USB audio carries demodulated AF (not raw RF), the **frequen
 
 ```bash
 sudo apt install \
-    qt5-qmake qtbase5-dev libqwt-qt5-dev \
+    qt5-qmake qtbase5-dev qtbase5-dev-tools \
+    libqwt-qt5-dev \
     libfftw3-dev libsndfile1-dev libsamplerate0-dev \
-    libportaudio2 portaudio19-dev \
+    portaudio19-dev \
     libusb-1.0-0-dev
+```
+
+For IC-7300 CI-V support (included by default):
+```bash
+sudo apt install libqt5serialport5-dev
 ```
 
 For RTL-SDR:
@@ -114,12 +138,13 @@ For HackRF:
 sudo apt install libhackrf-dev
 ```
 
-For SDRplay: download the API installer from [sdrplay.com](https://www.sdrplay.com/downloads/).
+For SDRplay: download the API installer from [sdrplay.com/downloads](https://www.sdrplay.com/downloads/).
 
 ### Fedora / RHEL
 
 ```bash
-sudo dnf install qt5-qtbase-devel qwt-qt5-devel \
+sudo dnf install \
+    qt5-qtbase-devel qwt-qt5-devel qt5-qtserialport-devel \
     fftw-devel libsndfile-devel libsamplerate-devel \
     portaudio-devel libusb1-devel
 ```
@@ -133,17 +158,17 @@ git clone https://github.com/VU3RAZ/cwskimmer.git
 cd cwskimmer
 qmake cwskimmer.pro
 make -j$(nproc)
-# binary lands in ./linux-bin/cwSkimmer
+# binary: ./linux-bin/cwSkimmer
 ```
 
-To build with specific device support, edit `cwskimmer.pro` or pass on the command line:
+To build with a subset of device backends:
 
 ```bash
-# All devices
-qmake "CONFIG += rtlsdr sdrplay-v3 hackrf ic7300" cwskimmer.pro
+# RTL-SDR + IC-7300 only
+qmake "CONFIG += rtlsdr ic7300" cwskimmer.pro && make -j$(nproc)
 
-# RTL-SDR only
-qmake "CONFIG += rtlsdr" cwskimmer.pro
+# Everything
+qmake "CONFIG += rtlsdr sdrplay-v3 hackrf ic7300" cwskimmer.pro && make -j$(nproc)
 ```
 
 ---
@@ -154,12 +179,10 @@ qmake "CONFIG += rtlsdr" cwskimmer.pro
 ./linux-bin/cwSkimmer
 ```
 
-On first run a device selector dialog appears. Your choice is saved in `~/.config/` and reused next time.
+On first run a device selector dialog appears. The choice is saved and reused on the next run.
 
-**Udev rules** (so the dongle is accessible without root):
-
+**RTL-SDR udev rule** (access without root):
 ```bash
-# RTL-SDR
 sudo cp appimage/udev-rules-helper /etc/udev/rules.d/rtlsdr.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
@@ -170,13 +193,13 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 | Control | Action |
 |---|---|
-| Mouse wheel on spectrum | Tune center frequency by step increment |
+| Mouse wheel on spectrum | Tune center frequency by step size |
 | Left-click on spectrum | Jump to that frequency |
 | Right-click on spectrum | Toggle waterfall / spectrum view |
 | **Freq** button | Open numeric keypad for direct frequency entry |
 | **Center bin** spinbox | Move the 48-bin decode window left/right |
 | **Width** spinbox | Narrow or widen the decode window (1–48 bins) |
-| **Mouse inc** spinbox | Set wheel step size (Hz) |
+| **Mouse inc** spinbox | Set wheel step size in Hz |
 | **Reset** button | Clear all decoded text |
 
 ---
@@ -185,55 +208,60 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ```
 cwskimmer/
-├── main.cpp                      — entry point, QSettings init
-├── radio.cpp / radio.h           — main window, FFT loop, device glue
-├── element-handler.cpp / .h      — per-bin CW decoder (AGC, state machine, Morse lookup)
-├── fft-complex.cpp / .h          — Cooley-Tukey FFT (power-of-2) + Bluestein (arbitrary)
-├── output-list.cpp / .h          — scrolling text output table (48 rows)
-├── radio-constants.h             — frequency macros, DSPCOMPLEX typedef, get_db()
+├── main.cpp                       — entry point, QSettings init
+├── radio.cpp / radio.h            — main window, FFT pipeline, device glue
+├── element-handler.cpp / .h       — per-bin CW decoder (AGC, state machine, Morse lookup)
+├── fft-complex.cpp / .h           — Cooley-Tukey radix-2 FFT; cached twiddle table
+├── output-list.cpp / .h           — 48-row decoded-text table
+├── radio-constants.h              — frequency macros, DSPCOMPLEX, get_db()
 │
 ├── devices/
-│   ├── device-handler.h / .cpp   — abstract base class (QThread + dataAvailable signal)
-│   ├── deviceselect.cpp / .h     — device picker dialog
-│   ├── filereader/               — WAV file IQ replay
-│   ├── rtlsdr-handler/           — RTL-SDR via librtlsdr (dynamically loaded)
-│   ├── sdrplay-handler-v2/       — SDRplay Mirics API v2
-│   ├── sdrplay-handler-v3/       — SDRplay API v3
-│   ├── hackrf-handler/           — HackRF via libhackrf
-│   └── ic7300-handler/           — IC-7300 USB audio IQ via PortAudio
+│   ├── device-handler.h / .cpp    — abstract base (QThread + dataAvailable signal)
+│   ├── deviceselect.cpp / .h      — device picker dialog
+│   ├── filereader/                — WAV file IQ replay (libsndfile)
+│   ├── rtlsdr-handler/            — RTL-SDR via librtlsdr (dlopen, 2-stage decimating FIR)
+│   ├── sdrplay-handler-v2/        — SDRplay Mirics API v2
+│   ├── sdrplay-handler-v3/        — SDRplay API v3
+│   ├── hackrf-handler/            — HackRF via libhackrf
+│   └── ic7300-handler/            — IC-7300 USB AF audio (PortAudio) + CI-V (QSerialPort)
 │
 ├── filters/
-│   ├── fir-filters.cpp / .h      — FIR lowpass, bandpass, decimating, Hilbert
-│   └── iir-filters.cpp / .h      — IIR filters
+│   ├── fir-filters.cpp / .h       — FIR lowpass, bandpass, decimating, Hilbert, adaptive
+│   └── iir-filters.cpp / .h       — IIR filters
 │
 ├── scopes-qwt6/
-│   ├── fft-scope                 — 192 kHz wideband spectrum/waterfall
-│   ├── spectrum-scope            — 48-bin narrow spectrum
-│   └── waterfall-scope           — time-frequency waterfall
+│   ├── fft-scope                  — 192 kHz wideband spectrum / waterfall (Qwt)
+│   ├── spectrum-scope             — 48-bin narrow-band spectrum
+│   └── waterfall-scope            — time-frequency waterfall
 │
 └── various/
-    ├── ringbuffer.h              — lock-free single-producer/single-consumer ring buffer
-    ├── averager.cpp / .h         — sliding-window moving average
-    └── popup-keypad.cpp / .h     — on-screen numeric keypad
+    ├── ringbuffer.h               — lock-free SPSC ring buffer (PortAudio lineage)
+    ├── averager.cpp / .h          — O(1) running-sum sliding-window averager
+    └── popup-keypad.cpp / .h      — on-screen numeric keypad
 ```
 
-**Signal flow in detail:**
+### Signal flow (wideband SDR mode)
 
-1. Device thread fills `RingBuffer<complex<float>>` at 192 kHz, emits `dataAvailable(int)`.
-2. `RadioInterface::sampleHandler()` drains the buffer in 384-sample (2 ms) chunks, zero-pads to 2048, calls `processBuffer()`.
-3. `processBuffer()` runs the FFT, extracts magnitude at the 48 bin indices, feeds each `elementHandler::process(magnitude, signalLevel)`.
-4. Each `elementHandler` runs a 3-state machine (IDLE → TONE → SPACE → IDLE), records durations, and calls `add()` every time an element completes.
-5. `add()` accumulates a 14-element circular queue of tone/space durations, estimates dot length, looks up the Morse symbol, and emits `updateText(binIndex, wpm, decoded_string)`.
-6. `outputList` receives the signal and updates the UI table row for that bin.
+1. **Device thread** fills `RingBuffer<complex<float>>` at 192 kHz; emits `dataAvailable(int)`.
+2. **`sampleHandler()`** drains the ring buffer in 384-sample (2 ms) chunks, zero-pads to 2048, calls `processBuffer()`.
+3. **`processBuffer()`** copies the chunk into `fftWorkBuf` (heap member, not stack), runs a 2048-pt FFT using a pre-computed twiddle table (no per-call malloc), extracts magnitude at each of the 48 active bin indices.
+4. **`elementHandler::process()`** per bin: decaying-average AGC, 3-state machine (IDLE → TONE → SPACE → IDLE), appends tone/space durations to a 32-element circular queue.
+5. **`elementHandler::add()`** every time a Morse element completes: sorts a 14-element window of recent durations; estimates dot length from shortest tone; classifies each tone as dot/dash (`> 1.5 × dotGuess`); looks up the Morse symbol; emits `updateText(binIndex, wpm, text)`.
+6. **`outputList`** receives `updateText` and updates the table row for that bin.
+
+### IC-7300 CI-V frequency sync
+
+When CI-V is connected, a bidirectional frequency sync runs on the Qt main thread:
+
+- **Radio → app**: CI-V transceive broadcasts (command `0x00`) or poll responses (`0x03`) are parsed in `parseCIVBuffer()`; a new VFO frequency triggers `emit frequencyChanged(freq)` → `RadioInterface::setFrequency()` updates the display and resets all decoder bin offsets.
+- **App → radio**: clicking a frequency or using the mouse wheel calls `setVFOFrequency(f)`; if `f != vfoFrequency` a CI-V set-frequency frame (command `0x05`, 5-byte BCD) is sent on the serial port.
+- **Loop prevention**: `vfoFrequency` is updated *before* emitting or sending, so the inevitable echo/response carrying the same value is silently discarded.
 
 ---
 
-## Known Issues / Planned Fixes
+## Known Issues
 
-All previously identified bugs have been fixed. Current open items:
-
-- **IC-7300 frequency display** — the VFO frequency shown in the app must be set manually to match the radio. Automatic readback via CI-V serial is not yet implemented (the `setVFOFrequency()` stub in `ic7300-handler.cpp` is the integration point).
-- **IC-7300 narrow bandwidth** — because the IC-7300 USB audio is AF (not IQ), the skimmer operates as a single-channel decoder limited to the radio's IF filter width (~2.4 kHz SSB / ~3.6 kHz CW-wide). For wideband 48-channel skimming, use a dedicated SDR.
+- **IC-7300 narrow bandwidth** — USB audio is AF only (not IQ), so the skimmer decodes a single channel limited by the IF filter width (~2.4 kHz SSB, ~3.6 kHz CW-wide). Use a dedicated SDR for 48-channel wideband operation.
 
 ---
 
@@ -242,4 +270,4 @@ All previously identified bugs have been fixed. Current open items:
 GNU General Public License v2.0 — see [COPYING](COPYING).
 
 Original author: Jan van Katwijk (J.vanKatwijk@gmail.com), Lazy Chair Computing.  
-IC-7300 support and additional fixes: VU3RAZ.
+IC-7300 support, CI-V integration, bug fixes and optimisations: VU3RAZ.
