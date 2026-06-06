@@ -27,11 +27,23 @@
 #define _USE_MATH_DEFINES
 #include	<math.h>
 #include	<string.h>
+#include	<cstdint>
 
 // Private function prototypes
 static size_t reverse_bits (size_t val, int width);
 static void *memdup (const void *src, size_t n);
 
+// Cached forward-transform twiddle table; populated by Fft_precompute().
+static std::complex<float> *g_exptable_fwd = nullptr;
+static size_t               g_exptable_n   = 0;
+
+void	Fft_precompute (size_t n) {
+	free (g_exptable_fwd);
+	g_exptable_fwd = (std::complex<float> *)malloc ((n / 2) * sizeof (std::complex<float>));
+	g_exptable_n   = n;
+	for (size_t i = 0; i < n / 2; i++)
+	   g_exptable_fwd [i] = std::exp (std::complex<float> (0, -2.0f * (float)M_PI * i / n));
+}
 
 bool	Fft_transform (std::complex<float> vec[], size_t n, bool inverse) {
 	if (n == 0)
@@ -53,32 +65,37 @@ int levels = 0;  // Compute levels = floor(log2(n))
 
 	if ((size_t)1U << levels != n)
 	   return false;  // n is not a power of 2
-	
-	// Trigonometric tables
-	if (SIZE_MAX / sizeof(std::complex<float>) < n / 2)
-	   return false;
 
-	std::complex<float> *exptable =
-	 (std::complex<float> *)malloc ((n / 2) * sizeof (std::complex<float>));
-	if (exptable == NULL)
-	   return false;
-	for (size_t i = 0; i < n / 2; i++)
-	   exptable [i] = std::exp (
-	         std::complex<float> (0, (inverse ? 2 : -2) * M_PI * i / n));
-	
+	// Use cached twiddle table for forward transforms of the known size
+	const bool useCache = (!inverse && g_exptable_n == n && g_exptable_fwd != nullptr);
+	std::complex<float> *exptable;
+
+	if (useCache) {
+	   exptable = g_exptable_fwd;
+	} else {
+	   if (SIZE_MAX / sizeof (std::complex<float>) < n / 2)
+	      return false;
+	   exptable = (std::complex<float> *)malloc ((n / 2) * sizeof (std::complex<float>));
+	   if (exptable == NULL)
+	      return false;
+	   for (size_t i = 0; i < n / 2; i++)
+	      exptable [i] = std::exp (
+	            std::complex<float> (0, (inverse ? 2 : -2) * M_PI * i / n));
+	}
+
 // Bit-reversed addressing permutation
 	for (size_t i = 0; i < n; i++) {
-	   size_t j = reverse_bits(i, levels);
+	   size_t j = reverse_bits (i, levels);
 	   if (j > i) {
-	      std::complex<float> temp = vec[i];
+	      std::complex<float> temp = vec [i];
 	      vec [i] = vec [j];
 	      vec [j] = temp;
 	   }
 	}
-	
+
 // Cooley-Tukey decimation-in-time radix-2 FFT
 	for (size_t size = 2; size <= n; size *= 2) {
-	   size_t halfsize = size / 2;
+	   size_t halfsize  = size / 2;
 	   size_t tablestep = n / size;
 	   for (size_t i = 0; i < n; i += size) {
 	      for (size_t j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
@@ -92,8 +109,9 @@ int levels = 0;  // Compute levels = floor(log2(n))
 	   if (size == n)  // Prevent overflow in 'size *= 2'
 	      break;
 	}
-	
-	free (exptable);
+
+	if (!useCache)
+	   free (exptable);
 	return true;
 }
 

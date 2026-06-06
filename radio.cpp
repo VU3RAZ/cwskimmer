@@ -79,13 +79,6 @@ const char *deviceTable [] = {
 	nullptr
 };
 
-static int startKnop;
-static	QTimer	*starter;
-#include	"element-handler.h"
-#define	NR_ELEMENTS	48
-elementHandler *workVector [NR_ELEMENTS];
-
-#define	FFT_SIZE	2048
 static inline
 int twoPower (int a) {
 int	res	= 1;
@@ -105,9 +98,11 @@ QString	FrequencytoString (int32_t freq) {
 	                                QWidget		*parent):
 	                                    QMainWindow (parent),
 	                                    inputBuffer (128 * 1024),
-	                                    theOutput (this, "dummy") {
+	                                    theOutput (this, "dummy"),
+	                                    starter (nullptr) {
 	this	-> settings	= sI;
 	this	-> inputRate	= 192000;
+	Fft_precompute (FFT_SIZE);
 	setupUi (this);
 //      and some buffers
 //
@@ -255,8 +250,8 @@ void	RadioInterface::handle_quitButton	() {
 	   disconnect (theDevice, SIGNAL (dataAvailable (int)),
 	               this, SLOT (sampleHandler (int)));
 	   delete  theDevice;
+	   theDevice = nullptr;
 	}
-	sleep (1);
 	fprintf (stderr, "device is deleted\n");
 	secondsTimer. stop ();
 	delete		hfScope;
@@ -284,7 +279,7 @@ void	RadioInterface::setFrequency (int32_t freq) {
 	QString ff	= FrequencytoString (selectedFrequency);
 	frequencyDisplay	-> display (ff);
 	for (int i = lowEnd; i < highEnd; i ++) {
-	   int freqOffset = (-NR_ELEMENTS / 2 + i) * 192000.0 / FFT_SIZE;
+	   int freqOffset = (-NR_ELEMENTS / 2 + i) * (float)inputRate / FFT_SIZE;
 	   workVector [i] -> reset ((freq + freqOffset));
 	   theOutput. setFrequency (i, (freq + freqOffset));
 	}
@@ -315,7 +310,7 @@ int h = inputRate / 2 - KHz (5);
 	QString ff 		= FrequencytoString (selectedFrequency);
 	frequencyDisplay	-> display (selectedFrequency);
 	for (int i = lowEnd; i <= highEnd; i ++) {
-	   int freqOffset = (-NR_ELEMENTS / 2.0 + i) * 192000.0 / FFT_SIZE;
+	   int freqOffset = (-NR_ELEMENTS / 2.0 + i) * (float)inputRate / FFT_SIZE;
 	   workVector [i] -> reset (selectedFrequency + freqOffset);
 	   theOutput. setFrequency (i, selectedFrequency + freqOffset);
 	}
@@ -334,7 +329,7 @@ void	RadioInterface::set_mouseIncrement (int inc) {
 }
 
 void	RadioInterface::wheelEvent (QWheelEvent *e) {
-	adjustFrequency_hz ((e -> delta () > 0) ?
+	adjustFrequency_hz ((e -> angleDelta ().y () > 0) ?
 	                        mouseIncrement : -mouseIncrement);
 }
 
@@ -342,56 +337,53 @@ void	RadioInterface::wheelEvent (QWheelEvent *e) {
 //
 void	RadioInterface::sampleHandler (int amount) {
 std::complex<float>   buffer [FFT_SIZE];
-static int cnt	= 0;
+static int cnt = 0;
+const int chunkSize = inputRate / 500;	// 2 ms of samples
 	(void)amount;
-	while (inputBuffer. GetRingBufferReadAvailable () > 2 * 192) {
-	   inputBuffer. getDataFromBuffer (buffer, 2 * 192);
-	   for (int i = 2 * 192; i < FFT_SIZE; i ++) 
+	while (inputBuffer. GetRingBufferReadAvailable () > chunkSize) {
+	   inputBuffer. getDataFromBuffer (buffer, chunkSize);
+	   for (int i = chunkSize; i < FFT_SIZE; i ++)
 	      buffer [i] = std::complex<float> (0, 0);
 	   processBuffer (buffer, FFT_SIZE);
-	   cnt ++;
-	   if (cnt % 10 == 0) {	// 100 milliseconds
+	   if (++cnt >= 10) {	// update scope every 100 ms
 	      hfScope	-> addElements (buffer, FFT_SIZE);
 	      cnt = 0;
 	   }
 	}
 }
 
-static
-int	cnt	= 0;
 void	RadioInterface::processBuffer	(std::complex<float> *b, int s) {
-float sum	= 0;
+static int cnt = 0;
 double	LFVector [NR_ELEMENTS];
-std::complex<float> res [FFT_SIZE];
+	(void)s;
 
-	for (int i = 0; i < FFT_SIZE; i ++)
-	   res [i] = b [i];
-	Fft_transform (res, FFT_SIZE, false);
+	// Copy into member buffer — avoids a 16 KB stack allocation each call.
+	memcpy (fftWorkBuf, b, FFT_SIZE * sizeof (std::complex<float>));
+	Fft_transform (fftWorkBuf, FFT_SIZE, false);
 
 	float	avg	= 0;
 	for (int i = 0; i < NR_ELEMENTS; i ++)
-	   avg += abs (res [(FFT_SIZE - NR_ELEMENTS / 2 + i) % FFT_SIZE]);
+	   avg += abs (fftWorkBuf [(FFT_SIZE - NR_ELEMENTS / 2 + i) % FFT_SIZE]);
 
 	avg	/= NR_ELEMENTS;
-	signalValue	= 0.99 * signalValue + 0.01 * get_db (avg);
+	signalValue	= 0.99f * signalValue + 0.01f * get_db (avg);
 	for (int i = 0; i < NR_ELEMENTS; i ++)
-	   LFVector [i] = 0.1;		// 
+	   LFVector [i] = 0.1;
 	for (int k = lowEnd; k <= highEnd; k ++) {
 	   int index = (FFT_SIZE - NR_ELEMENTS / 2 + k) % FFT_SIZE;
-	   workVector [k] -> process (abs (res [index]), signalValue);
-	   LFVector  [k] = abs (res [(FFT_SIZE - NR_ELEMENTS / 2 + k) % FFT_SIZE]);
+	   workVector [k] -> process (abs (fftWorkBuf [index]), signalValue);
+	   LFVector  [k] = abs (fftWorkBuf [(FFT_SIZE - NR_ELEMENTS / 2 + k) % FFT_SIZE]);
 	}
-	if (++cnt > 50) { 
+	if (++cnt > 50) {
 	   float max = 0;
 	   double X_axis [NR_ELEMENTS];
-	   float avg	= 0;
-	   for (int i = - NR_ELEMENTS / 2; i < NR_ELEMENTS / 2;  i ++) 
+	   for (int i = -NR_ELEMENTS / 2; i < NR_ELEMENTS / 2; i ++)
 	      X_axis [NR_ELEMENTS / 2 + i] = i;
 	   for (int i = 0; i < NR_ELEMENTS; i ++) {
 	      if (max < LFVector [i])
 	         max = LFVector [i];
 	   }
-	   LFScope	-> ViewSpectrum (X_axis, LFVector, max, 0,  0);
+	   LFScope	-> ViewSpectrum (X_axis, LFVector, max, 0, 0);
 	   cnt = 0;
 	}
 }
@@ -665,6 +657,7 @@ void	RadioInterface::quickStart () {
 	            this, SLOT (quickStart ()));
 	fprintf (stderr, "going for quickStart\n");
 	delete starter;
+	starter = nullptr;
 	if (getDevice (deviceTable [startKnop]) ==  nullptr)
 	   if (setDevice (settings) == nullptr)
 	      exit (1);

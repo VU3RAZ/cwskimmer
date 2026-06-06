@@ -24,7 +24,6 @@
 #include	<stdio.h>
 #include	<algorithm>
 #include	<cstring>
-#include	<vector>
 #include	"radio.h"
 
 	elementHandler::elementHandler (RadioInterface *mr,
@@ -113,22 +112,7 @@ int	lengthOfTone;
 	}
 }
 
-bool	sorter (int i, int j) {
-	return i < j;
-}
-
 #define	SEARCH_LENGTH	14
-bool	isDot (int value, int norm) {
-	if (value < 0)
-	   fprintf (stderr, "Help 1");
-	return value < 1.5 * norm;
-}
-
-bool	isLongSpace	(int value, int norm) {
-	if (value > 0)
-	   fprintf (stderr, "Help 2");
-	return -value > norm;
-}
 //
 //	The approach we take is to put the durations of the tones and spaces
 //	into a queue. We know that a Morse symbol does not exceed 5
@@ -145,24 +129,30 @@ int	bufferElems	= 0;
 	   return;
 //
 //	The first thing to do is to guess the length of the DOT
-	std::vector<int> spaceSizes;
-	std::vector<int> toneSizes;
+	// Stack arrays eliminate heap allocation on every decoded element.
+	int spaceSizes [SEARCH_LENGTH];
+	int toneSizes  [SEARCH_LENGTH];
+	int nSpaces = 0, nTones = 0;
 	for (int i = 0; i < SEARCH_LENGTH; i ++) {
-	   if (buffer [(emptyP + i) % QUEUE_LENGTH] < 0)
-	      spaceSizes. push_back (-buffer [(emptyP + i) % QUEUE_LENGTH]);
+	   int v = buffer [(emptyP + i) % QUEUE_LENGTH];
+	   if (v < 0)
+	      spaceSizes [nSpaces ++] = -v;
 	   else
-	      toneSizes. push_back (buffer [(emptyP + i) % QUEUE_LENGTH]);
+	      toneSizes  [nTones  ++] = v;
 	}
-	std::sort (spaceSizes. begin (), spaceSizes. end ());
-	std::sort (toneSizes. begin (), toneSizes. end ());
+	if (nSpaces == 0 || nTones == 0) {
+	   emptyP = (emptyP + 2) % QUEUE_LENGTH;
+	   return;
+	}
+	std::sort (spaceSizes, spaceSizes + nSpaces);
+	std::sort (toneSizes,  toneSizes  + nTones);
 
-	int spaceGuess	= spaceSizes. at (0);
-	int dotGuess	= toneSizes. at (0);
+	int spaceGuess = spaceSizes [0];
 //
 //	since we know that a symbol takes at most 6 dash/dot combinations,
 //	the longest space should be at least 2 times the shortest
 //
-	if (2 * spaceGuess > spaceSizes.  at (spaceSizes. size () - 1)) {
+	if (2 * spaceGuess > spaceSizes [nSpaces - 1]) {
 	   emptyP = (emptyP + 2) % QUEUE_LENGTH;
 	   return;
 	}

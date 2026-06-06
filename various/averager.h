@@ -13,6 +13,7 @@ private:
         int16_t         size;
         float           *vec;
         int16_t         filp;
+        float           sum;
 };
 
 #endif

@@ -71,6 +71,11 @@ bool	Fft_convolve (const std::complex<float> xvec [],
 	              const std::complex<float> yvec [],
 	              std::complex<float> outvec[], size_t n);
 
+/*
+ * Pre-compute and cache the twiddle table for forward transforms of size n.
+ * Call once at startup with the fixed FFT size to eliminate per-call malloc.
+ */
+void	Fft_precompute (size_t n);
 
 #ifdef __cplusplus
 }

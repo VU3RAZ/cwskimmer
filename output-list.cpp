@@ -40,11 +40,6 @@
 }
 
 	outputList::~outputList () {
-int16_t	i;
-int16_t	rows	= tableWidget -> rowCount ();
-
-	for (i = rows; i > 0; i --)
-	   tableWidget -> removeRow (i);
 	delete	tableWidget;
 	delete	myWidget;
 }
@@ -79,21 +74,16 @@ int16_t	row	= tableWidget -> rowCount ();
 //
 
 void	outputList::setFrequency (int index, int frequency) {
-QString s = QString::number (frequency);
-	if (index > 0)
-	   index --;
-	else
+	if (index < 0 || index >= tableWidget -> rowCount ())
 	   return;
-	tableWidget	-> item (index, 0) -> setText (s);
+	tableWidget -> item (index, 0) -> setText (QString::number (frequency));
 }
 
 void	outputList::updateText (int index, int count, const QString &s) {
-	if (index > 0)
-	   index --;
-	else
+	if (index < 0 || index >= tableWidget -> rowCount ())
 	   return;
-	tableWidget	-> item (index, 1) -> setText (QString::number (count));
-	tableWidget	-> item (index, 2) -> setText (s);
+	tableWidget -> item (index, 1) -> setText (QString::number (count));
+	tableWidget -> item (index, 2) -> setText (s);
 }
 
 void	outputList::saveTable (void) {

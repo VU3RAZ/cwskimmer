@@ -59,16 +59,15 @@
 static 
 float convTable [256];
 
-static
-std::complex<float> ibuf [READLEN_DEFAULT / 2];
+// Static output buffer — avoids a 32 KB stack allocation on every callback.
+static std::complex<float> ibuf [READLEN_DEFAULT / 2];
 
-//	For the callback, we do need some environment 
+//	For the callback, we do need some environment
 //	This is the user-side call back function
 void	dll_driver::RTLSDRCallBack (unsigned char *buf,
 	                            uint32_t len, void *ctx) {
 rtlsdrHandler	*theStick = (rtlsdrHandler *)ctx;
 int cnt	= 0;
-std::complex<float> localBuf [READLEN_DEFAULT / 2];
 
 	if ((len != READLEN_DEFAULT) || (theStick == NULL))
 	   return;
@@ -79,12 +78,11 @@ std::complex<float> localBuf [READLEN_DEFAULT / 2];
 	                                    convTable [buf [2 * i + 1]]);
 	   std::complex<float> tmp2;
 	   if (theStick -> filter_1 -> Pass (tmp, &tmp2))
-	      if (theStick -> filter_2 -> Pass (tmp2, &localBuf [cnt]))
-                 if (localBuf [cnt] == localBuf [cnt])
-                    cnt ++;
-
+	      if (theStick -> filter_2 -> Pass (tmp2, &ibuf [cnt]))
+	         if (ibuf [cnt] == ibuf [cnt])
+	            cnt ++;
 	}
-	theStick -> _I_Buffer -> putDataIntoBuffer (localBuf, cnt);
+	theStick -> _I_Buffer -> putDataIntoBuffer (ibuf, cnt);
 	if ((int)(theStick -> _I_Buffer -> GetRingBufferReadAvailable ()) >
 	   theStick -> outputRate / 10)
 	   theStick -> newdataAvailable (theStick -> outputRate / 10);
@@ -194,7 +192,7 @@ QString	temp;
 	{  int gains [gainsCount];
 	   fprintf (stderr, "Supported gain values (%d): ", gainsCount);
 	   gainsCount = rtlsdr_get_tuner_gains (device, gains);
-	   for (i = gainsCount; i > 0; i++) {
+	   for (i = gainsCount; i > 0; i--) {
 	      fprintf (stderr, "%.1f ", gains [i - 1] / 10.0);
 	      combo_gain -> addItem (QString::number (gains [i - 1]));
 	   }

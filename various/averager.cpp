@@ -3,12 +3,10 @@
 #include	<cstring>
 
 	average::average (int16_t s) {
-int16_t	i;
-
 	size	= s;
 	vec	= new float [s];
 	filp	= 0;
-
+	sum	= 0.0f;
 	memset (vec, 0, s * sizeof (float));
 }
 
@@ -16,24 +14,20 @@ int16_t	i;
 	delete[]	vec;
 }
 
+// O(1) running-sum implementation — replaces the original O(n) loop.
 float	average::filter (float e) {
-int16_t	i;
-float	out	= 0.0;
-
+	sum   -= vec [filp];
 	vec [filp] = e;
-	filp = (filp + 1) % size;
-
-	for (i = 0; i < size; i ++)
-	   out += vec [i];
-
-	return out / size;
+	sum   += e;
+	filp   = (filp + 1) % size;
+	return sum / size;
 }
 
-void	average::clear (float c ) {
+void	average::clear (float c) {
 int16_t	i;
 
 	for (i = 0; i < size; i ++)
 	   vec [i] = c;
+	sum  = c * size;
 	filp = 0;
 }
-

@@ -28,72 +28,71 @@
 #include        <QTimer>
 #include        <QWheelEvent>
 #include        <QLineEdit>
-#include	<QTimer>
+#include	<cstring>
 #include	<sndfile.h>
 #include        "ui_newradio.h"
 #include        "radio-constants.h"
 #include        "ringbuffer.h"
-//#include	"shifter.h"
 #include	"output-list.h"
+#include	"element-handler.h"
+
+#define	NR_ELEMENTS	48
+#define	FFT_SIZE	2048
 
 class		deviceHandler;
 class           QSettings;
 class           fftScope;
 class		SpectrumViewer;
-class           fft_scope;
 class		keyPad;
 
-class	RadioInterface:public QMainWindow,
-	               private Ui_MainWindow {
+class	RadioInterface : public QMainWindow, private Ui_MainWindow {
 Q_OBJECT
 public:
-		RadioInterface (QSettings	*sI,
-	                        QWidget		*parent = NULL);
+		RadioInterface	(QSettings *sI, QWidget *parent = nullptr);
 		~RadioInterface	();
 
 	int32_t	get_selectedFrequency	();
 	int32_t	get_centerFrequency	();
+
 private:
-        RingBuffer<std::complex<float> > inputBuffer;
-	outputList	theOutput;
-	std::complex<float> *fftVector;
-	int32_t		centerFrequency;
-	int32_t		selectedFrequency;
-	QSettings       *settings;
-        int32_t         inputRate;
-	int32_t		scopeWidth;
-        int32_t         audioRate;
-        int16_t         displaySize;
-        int16_t         spectrumSize;
-        double          *displayBuffer;
-        fftScope        *hfScope;
-	int16_t		mouseIncrement;
-	int16_t		delayCount;
+        RingBuffer<std::complex<float>>	inputBuffer;
+	outputList		theOutput;
+	int32_t			centerFrequency;
+	int32_t			selectedFrequency;
+	QSettings              *settings;
+        int32_t                 inputRate;
+	int32_t			scopeWidth;
+        int16_t                 displaySize;
+        fftScope               *hfScope;
+	int16_t			mouseIncrement;
+	int16_t			delayCount;
+	SpectrumViewer         *LFScope;
+	float			signalValue;
+	int			centerBin;
+	int			nrBins;
+	int			lowEnd;
+	int			highEnd;
+	QTimer			secondsTimer;
+	keyPad                 *mykeyPad;
+	deviceHandler          *theDevice;
+	int			startKnop;
+	QTimer                 *starter;
 
-	SpectrumViewer	*LFScope;
-	void		processBuffer	(std::complex<float> *, int);
-	void		update_work	(int, float, float);
+	elementHandler         *workVector[NR_ELEMENTS];
+	std::complex<float>	fftWorkBuf[FFT_SIZE];
 
-	float		signalValue;
-
-	int		centerBin;
-	int		nrBins;
-	int		lowEnd;
-	int		highEnd;
-	QTimer		secondsTimer;
-	keyPad		*mykeyPad;
-	deviceHandler	*theDevice;
 	void		setStart	();
-	deviceHandler   *getDevice      (const QString &);
-        deviceHandler   *setDevice      (QSettings *);
+	void		processBuffer	(std::complex<float> *, int);
+	deviceHandler  *getDevice	(const QString &);
+        deviceHandler  *setDevice	(QSettings *);
 
 private slots:
         void            adjustFrequency_hz	(int);
         void            adjustFrequency_khz	(int);
         void            set_hfscopeLevel	(int);
 	void		setFrequency		(int32_t);
-        void            handle_freqButton       ();
-        void            wheelEvent              (QWheelEvent *);
+        void            handle_freqButton	();
+        void            wheelEvent		(QWheelEvent *);
 	void		set_mouseIncrement	(int);
 	void		handle_quitButton	();
 	void		switch_hfViewMode	(int);
@@ -102,6 +101,7 @@ private slots:
 	void		handle_resetButton	();
 	void		handle_centerChannel	(int);
 	void		handle_decodeWidth	(int);
+
 public slots:
 	void		quickStart		();
 	void		sampleHandler		(int amount);
