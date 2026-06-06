@@ -338,7 +338,7 @@ void	RadioInterface::wheelEvent (QWheelEvent *e) {
 void	RadioInterface::sampleHandler (int amount) {
 std::complex<float>   buffer [FFT_SIZE];
 static int cnt = 0;
-const int chunkSize = inputRate / 500;	// 2 ms of samples
+const uint32_t chunkSize = inputRate / 500;	// 2 ms of samples
 	(void)amount;
 	while (inputBuffer. GetRingBufferReadAvailable () > chunkSize) {
 	   inputBuffer. getDataFromBuffer (buffer, chunkSize);

@@ -98,9 +98,8 @@ CONFIG		+= rtlsdr
 CONFIG		+= hackrf
 LIBS		+= -L/usr/lib64
 LIBS		+= -L/lib64
-INCLUDEPATH	+= /usr/include/qt5/qwt
-LIBS		+= -lqwt-qt5 -lrt -lsndfile -lsamplerate  -lfftw3f -lportaudio -lusb-1.0  -ldl
-LIBS		+= -lqwt-qt5 -lrt -lsndfile -lsamplerate -lfftw3f  -lportaudio -lusb-1.0  -ldl
+INCLUDEPATH	+= /usr/include/qwt
+LIBS		+= -lqwt-qt5 -lrt -lsndfile -lsamplerate -lfftw3f -lportaudio -lusb-1.0 -ldl
 }
 
 win32 {
@@ -161,7 +160,7 @@ sdrplay-v3 {
         FORMS           += ./devices/sdrplay-handler-v3/sdrplay-widget-v3.ui
         DEPENDPATH      += ./devices/sdrplay-handler-v3
         INCLUDEPATH     += ./devices/sdrplay-handler-v3 \
-	                   ./devices/sdrplay-handler-v3/includes
+	                   ./devices/sdrplay-handler-v3/include
         HEADERS         += ./devices/sdrplay-handler-v3/sdrplay-handler-v3.h 
         SOURCES         += ./devices/sdrplay-handler-v3/sdrplay-handler-v3.cpp 
 }
