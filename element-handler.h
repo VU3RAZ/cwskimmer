@@ -64,11 +64,8 @@ private:
 	int		identity;
 	float		agc_peak;
 	float		avg;
-	float		noiseLevel;
-	float		value;
 	int		cwState;
 	int		currentTime;
-	int		cwCurrent;
 	int		cwStartTime;
 	int		starter;
 	int		cwFrequency;
@@ -81,7 +78,6 @@ private:
 	void		cw_addText	(char c);
 	void		cw_clrText	();
 	void		lookupToken	(char *, char *);
-	void		printChar	(char a, char err);
 signals:
 	void		updateText	(int, int, const QString &);
 };

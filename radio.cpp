@@ -76,9 +76,6 @@ const char *deviceTable [] = {
 #ifdef	HAVE_LIME
 	D_LIME,
 #endif
-#ifdef	HAVE_DABSTICK
-	D_RTLSDR,
-#endif
 #ifdef	HAVE_RTLSDR
 	D_RTLSDR,
 #endif
@@ -288,7 +285,7 @@ void	RadioInterface::setFrequency (int32_t freq) {
 	                              centerFrequency - selectedFrequency);
 	QString ff	= FrequencytoString (selectedFrequency);
 	frequencyDisplay	-> display (ff);
-	for (int i = lowEnd; i < highEnd; i ++) {
+	for (int i = lowEnd; i <= highEnd; i ++) {
 	   int freqOffset = (-NR_ELEMENTS / 2 + i) * (float)inputRate / FFT_SIZE;
 	   workVector [i] -> reset ((freq + freqOffset));
 	   theOutput. setFrequency (i, (freq + freqOffset));
@@ -593,18 +590,6 @@ bool    success	= true;		// we hope it stays that way
 	if (s == D_HACKRF) {
 	   try {
 	      theDevice = new hackrfHandler (this,
-	                                     &inputBuffer,
-	                                     settings, 192000);
-	   } catch (int e) {
-	      success = false;
-	   }
-	}
-	else
-#endif
-#ifdef HAVE_DABSTICK
-	if (s == D_RTLSDR) {
-	   try {
-	      theDevice = new rtlsdrHandler (this,
 	                                     &inputBuffer,
 	                                     settings, 192000);
 	   } catch (int e) {

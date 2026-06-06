@@ -230,12 +230,10 @@ cwskimmer/
 
 ## Known Issues / Planned Fixes
 
-- `rtlsdr-handler.cpp:197` — gain enumeration loop has `i++` instead of `i--` (infinite loop / crash on multi-gain devices). **Fix pending.**
-- `filereader.cpp:77` — division by zero if `playTime == 0` during progress bar update.
-- `radio.cpp:259` — `sleep(1)` in GUI thread on quit; causes 1-second freeze.
-- `radio.cpp:337` — `QWheelEvent::delta()` deprecated; should use `angleDelta().y()`.
-- Hardcoded `192000` / `192` literals in `radio.cpp` (lines 287, 318, 347) should use `inputRate`.
-- FFT twiddle table re-allocated via `malloc` on every 2ms call — needs caching for fixed size.
+All previously identified bugs have been fixed. Current open items:
+
+- **IC-7300 frequency display** — the VFO frequency shown in the app must be set manually to match the radio. Automatic readback via CI-V serial is not yet implemented (the `setVFOFrequency()` stub in `ic7300-handler.cpp` is the integration point).
+- **IC-7300 narrow bandwidth** — because the IC-7300 USB audio is AF (not IQ), the skimmer operates as a single-channel decoder limited to the radio's IF filter width (~2.4 kHz SSB / ~3.6 kHz CW-wide). For wideband 48-channel skimming, use a dedicated SDR.
 
 ---
 

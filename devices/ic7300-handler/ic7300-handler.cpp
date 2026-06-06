@@ -80,6 +80,10 @@ const int16_t *src  = static_cast<const int16_t *> (inputBuffer);
 	if (!src)
 	   return paContinue;
 
+	// Guard against host APIs (e.g. ALSA plughw) delivering a larger block.
+	if (framesPerBuffer > IC7300_FRAMES)
+	   framesPerBuffer = IC7300_FRAMES;
+
 	// The IC-7300 sends mono AF audio; both channels carry the same signal.
 	// Store as complex with Q = 0 so the downstream FFT pipeline receives
 	// real-valued input (spectrum folds onto positive frequencies only).

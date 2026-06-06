@@ -39,9 +39,7 @@
 
 void	elementHandler::reset	(int frequency) {
 	cwFrequency		= frequency;
-	cwCurrent		= 0;
 	agc_peak		= 0;
-	noiseLevel		= 0;
 	avg			= 0;
 	starter			= 0;
 	cwState			= MODE_IDLE;
@@ -148,6 +146,7 @@ int	bufferElems	= 0;
 	std::sort (toneSizes,  toneSizes  + nTones);
 
 	int spaceGuess = spaceSizes [0];
+	int dotGuess   = toneSizes  [0];
 //
 //	since we know that a symbol takes at most 6 dash/dot combinations,
 //	the longest space should be at least 2 times the shortest
@@ -161,7 +160,7 @@ int	bufferElems	= 0;
 	   emptyP = (emptyP + 2) % QUEUE_LENGTH;
 	   return;
 	}
-	   
+
 //	it is known that Morse symbols are at most 5 dash/dot combis
 	for (int i = 0; i < 6; i ++) {
 	   int space = -buffer [(emptyP + 2 * i + 1) % QUEUE_LENGTH];
@@ -169,8 +168,8 @@ int	bufferElems	= 0;
 	      char bbb [10];
 	      for (int j = 0; j <= i; j ++) {
 	         int xx = buffer [(emptyP + 2 * j) % QUEUE_LENGTH];
-//	         fprintf (stderr, "%d ", xx);
-	         if (xx > 1.5 * spaceGuess)
+	         // dash is 3× dot; threshold at 1.5× shortest observed tone
+	         if (xx > 1.5 * dotGuess)
 	            bbb [j] = '_';
 	         else
 	            bbb [j] = '.';
@@ -197,30 +196,6 @@ float	elementHandler::decayingAverage (float old, float input, float weight) {
 }
 
 
-void 	elementHandler::printChar (char a, char er) {
-	if ((a & 0x7f) < 32) {
-	   switch (a) {
-	      case '\n':		break;
-	      case '\r':		return;
-	      case 8:			break;
-	      case 9:			break;
-	      default:			a = ' ';
-	   }
-	}
-
-	switch (er) {
-	   case 0:	printf("%c",a);break;
-	   case 1:	printf("\033[01;42m%c\033[m",a); break;
-	   case 2:	printf("\033[01;41m%c\033[m",a); break;
-	   case 3:	printf("\033[01;43m%c\033[m",a); break;
-	   case 4:
-	   case 5:
-	   case 6:
-	   case 7:	printf("\033[2J\033[H<BRK>\n"); break;
-	   default:
-			break;
-	}
-}
 
 const char * const codetable[] = {
 	"A._",
