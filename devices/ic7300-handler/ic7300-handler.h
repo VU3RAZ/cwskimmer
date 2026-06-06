@@ -18,12 +18,6 @@
  *    You should have received a copy of the GNU General Public License
  *    along with cwSkimmer; if not, write to the Free Software
  *    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- *    IC-7300 USB Audio IQ handler.
- *    The IC-7300 exposes its IQ stream as a standard USB audio device:
- *      stereo 16-bit PCM, Left = I, Right = Q, up to 192000 Hz.
- *    No special driver is required — PortAudio enumerates it as a normal
- *    input device (typically labelled "USB Audio CODEC").
  */
 
 #ifndef __IC7300_HANDLER_H
@@ -31,6 +25,9 @@
 
 #include	<QFrame>
 #include	<QString>
+#include	<QByteArray>
+#include	<QSerialPort>
+#include	<QTimer>
 #include	<portaudio.h>
 #include	"device-handler.h"
 #include	"ringbuffer.h"
@@ -58,12 +55,18 @@ public:
 	int32_t				outputRate;
 	void		newdataAvailable (int);
 
+signals:
+	// Emitted when the radio reports a new VFO frequency via CI-V.
+	// Connected in radio.cpp to RadioInterface::setFrequency(int32_t).
+	void		frequencyChanged (int32_t freq);
+
 private:
+	// ---- Audio (PortAudio) ----
 	QFrame		myFrame;
 	QSettings      *mySettings;
 	PaStream       *paStream;
 	int		paDeviceIndex;
-	int		inputChannels;		// 1 = mono, 2 = stereo
+	int		inputChannels;
 	int32_t		vfoFrequency;
 
 	static int	paCallback	(const void *,
@@ -75,8 +78,31 @@ private:
 	void		populateDevices	();
 	bool		openDevice	(int deviceIndex);
 
+	// ---- CI-V frequency control ----
+	QSerialPort    *civPort;
+	QByteArray	civRxBuffer;
+	uint8_t		civAddress;		// radio CI-V address, default 0x94
+	QTimer         *civPollTimer;
+
+	void		populateCIVPorts ();
+	bool		openCIV		();
+	void		closeCIV	();
+	void		sendCIVReadFreq	();
+	void		sendCIVSetFreq	(int32_t freq);
+	void		parseCIVBuffer	();
+
+	static int32_t	civBCDtoFreq	(const uint8_t *bcd);
+	static void	freqToCIVBCD	(int32_t freq, uint8_t *bcd);
+
 private slots:
+	// Audio slots
 	void		deviceSelected	(int comboIndex);
+
+	// CI-V slots
+	void		civConnectClicked ();
+	void		civRefreshPorts	();
+	void		civDataReady	();
+	void		civPollFreq	();
 };
 
 #endif

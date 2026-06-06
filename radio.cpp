@@ -613,9 +613,13 @@ bool    success	= true;		// we hope it stays that way
 #ifdef HAVE_IC7300
 	if (s == D_IC7300) {
 	   try {
-	      theDevice = new ic7300Handler (this,
-	                                     &inputBuffer,
-	                                     settings);
+	      ic7300Handler *h = new ic7300Handler (this,
+	                                            &inputBuffer,
+	                                            settings);
+	      theDevice = h;
+	      // When the radio reports a new VFO via CI-V, update the skimmer display.
+	      connect (h, SIGNAL (frequencyChanged (int32_t)),
+	               this, SLOT (setFrequency (int32_t)));
 	   } catch (int e) {
 	      success = false;
 	   }

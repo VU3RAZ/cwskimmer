@@ -187,6 +187,7 @@ rtlsdr	{
 }
 
 ic7300	{
+	QT		+= serialport
 	DEFINES		+= HAVE_IC7300
         FORMS           += ./devices/ic7300-handler/ic7300-widget.ui
         DEPENDPATH	+= ./devices/ic7300-handler
