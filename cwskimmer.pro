@@ -96,6 +96,7 @@ CONFIG		+= sdrplay-v3
 CONFIG		+= sdrplay-v2
 CONFIG		+= rtlsdr
 CONFIG		+= hackrf
+CONFIG		+= ic7300
 LIBS		+= -L/usr/lib64
 LIBS		+= -L/lib64
 INCLUDEPATH	+= /usr/include/qwt
@@ -183,5 +184,14 @@ rtlsdr	{
 	                   ./devices/rtlsdr-handler/dongleselect.h
         SOURCES         += ./devices/rtlsdr-handler/rtlsdr-handler.cpp \
 	                   ./devices/rtlsdr-handler/dongleselect.cpp
+}
+
+ic7300	{
+	DEFINES		+= HAVE_IC7300
+        FORMS           += ./devices/ic7300-handler/ic7300-widget.ui
+        DEPENDPATH	+= ./devices/ic7300-handler
+        INCLUDEPATH	+= ./devices/ic7300-handler
+        HEADERS         += ./devices/ic7300-handler/ic7300-handler.h
+        SOURCES         += ./devices/ic7300-handler/ic7300-handler.cpp
 }
 

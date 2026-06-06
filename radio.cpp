@@ -51,14 +51,18 @@
 #ifdef	HAVE_RTLSDR
 #include	"rtlsdr-handler.h"
 #endif
+#ifdef	HAVE_IC7300
+#include	"ic7300-handler.h"
+#endif
 //
 
 #define	D_SDRPLAY_V2	"sdrplay"
 #define	D_SDRPLAY_V3	"sdrplay-v3"
 #define	D_HACKRF	"hackrf"
 #define	D_RTLSDR	"dabstick"
+#define	D_IC7300	"ic7300"
 #define	D_FILEREADER	"filereader"
-static 
+static
 const char *deviceTable [] = {
 #ifdef	HAVE_SDRPLAY_V3
 	D_SDRPLAY_V3,
@@ -74,6 +78,12 @@ const char *deviceTable [] = {
 #endif
 #ifdef	HAVE_DABSTICK
 	D_RTLSDR,
+#endif
+#ifdef	HAVE_RTLSDR
+	D_RTLSDR,
+#endif
+#ifdef	HAVE_IC7300
+	D_IC7300,
 #endif
 	D_FILEREADER,
 	nullptr
@@ -597,6 +607,30 @@ bool    success	= true;		// we hope it stays that way
 	      theDevice = new rtlsdrHandler (this,
 	                                     &inputBuffer,
 	                                     settings, 192000);
+	   } catch (int e) {
+	      success = false;
+	   }
+	}
+	else
+#endif
+#ifdef HAVE_RTLSDR
+	if (s == D_RTLSDR) {
+	   try {
+	      theDevice = new rtlsdrHandler (this,
+	                                     &inputBuffer,
+	                                     settings, 192000);
+	   } catch (int e) {
+	      success = false;
+	   }
+	}
+	else
+#endif
+#ifdef HAVE_IC7300
+	if (s == D_IC7300) {
+	   try {
+	      theDevice = new ic7300Handler (this,
+	                                     &inputBuffer,
+	                                     settings);
 	   } catch (int e) {
 	      success = false;
 	   }
