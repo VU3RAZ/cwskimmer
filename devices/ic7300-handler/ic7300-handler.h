@@ -63,6 +63,7 @@ private:
 	QSettings      *mySettings;
 	PaStream       *paStream;
 	int		paDeviceIndex;
+	int		inputChannels;		// 1 = mono, 2 = stereo
 	int32_t		vfoFrequency;
 
 	static int	paCallback	(const void *,

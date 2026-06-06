@@ -93,7 +93,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Set radio: SET &gt; Connectors &gt; USB Audio, rate 192000</string>
+     <string>Radio: MENU → SET → Connectors → USB(AF) → Output Select: AF</string>
     </property>
     <property name="styleSheet">
      <string>color: grey; font-size: 10px;</string>

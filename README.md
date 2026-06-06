@@ -45,27 +45,50 @@ SDR hardware → IQ samples (192 kHz) → RingBuffer
 | SDRplay RSP1/RSP2/RSPdx (API v2) | `CONFIG += sdrplay-v2` | requires Mirics API |
 | SDRplay (API v3) | `CONFIG += sdrplay-v3` | preferred for newer RSP devices |
 | HackRF One | `CONFIG += hackrf` | 8-bit, requires `libhackrf` |
-| Icom IC-7300 | `CONFIG += ic7300` | USB audio IQ at 192 kHz — see below |
+| Icom IC-7300 | `CONFIG += ic7300` | USB AF audio at 48 kHz (single channel, narrow-band) — see below |
 | WAV file | always included | 16-bit stereo IQ `.wav` at 192 kHz |
 
 ---
 
 ## IC-7300 Setup
 
-The IC-7300 outputs its IQ stream as a standard USB audio device (stereo, Left = I, Right = Q) at up to 192 kHz. No special driver is needed on Linux.
+### What the IC-7300 actually provides over USB
 
-1. Connect IC-7300 via USB.
-2. In the radio's menu: **SET → Connectors → USB Audio → MOD Input = USB**, sample rate = **192000**.
-3. Verify it appears as an audio input:
-   ```bash
-   pactl list sources short | grep -i icom
-   # or
-   arecord -l | grep -i codec
-   ```
+The IC-7300 is **not an SDR**. Its USB audio interface carries narrow-band **AF (audio-frequency) receive audio** — the same signal you would hear in headphones — not raw IQ samples.
+
+| Parameter | IC-7300 USB Audio |
+|---|---|
+| Signal type | AF audio (NOT IQ) |
+| Channels | Mono (same signal on L and R) |
+| Sample rates | 8000 / 16000 / 22050 / 44100 / **48000** Hz |
+| **192000 Hz** | **Not supported** |
+| Bandwidth | Limited to IF filter width (≈ 2.4 kHz SSB, up to 3.6 kHz CW-wide) |
+
+Because the input bandwidth is narrow, the cwskimmer acts as a **single-channel CW decoder** when using the IC-7300 — not a 48-channel wideband skimmer. For wideband skimming across 4+ kHz, use a dedicated SDR (RTL-SDR, SDRplay, HackRF).
+
+### Radio setup
+
+1. Connect the IC-7300 to the PC via USB cable.
+2. On the radio: **MENU → SET → Connectors → USB(AF)**
+   - Set **Output Select** → `AF`
+   - Set **MOD Input** → `USB` *(only needed if you transmit digital modes)*
+3. The radio will appear in your OS as **"USB Audio CODEC"** at 48000 Hz.
+
+Verify it is visible:
+```bash
+arecord -l | grep -i codec
+# or
+pactl list sources short | grep -i codec
+```
+
 4. Build with `CONFIG += ic7300` (see Build section).
-5. In the device selector, pick **ic7300**, then choose the IC-7300's audio interface from the drop-down.
+5. In the device selector, pick **ic7300**, then choose **"USB Audio CODEC"** from the drop-down.
 
-For **CI-V frequency control** (optional — lets the app read/set the radio's VFO), connect the CI-V port and configure the serial device in settings. Without it, the frequency display in the app is informational only; tune the radio manually.
+The handler opens the device at its native sample rate (48000 Hz) automatically — no manual rate setting is needed in the menu.
+
+### Frequency display
+
+Because the IC-7300 USB audio carries demodulated AF (not raw RF), the **frequency display shows the VFO frequency you set manually** on the radio. There is no automatic frequency readback. The handler includes a `setVFOFrequency()` stub ready for optional CI-V serial control if you want to add automatic frequency tracking later.
 
 ---
 
